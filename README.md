@@ -1,50 +1,33 @@
-# ============================================================
-# 🎬 YouTube Downloader (yt-dlp + FFmpeg AutoFix)
-# ------------------------------------------------------------
-# Dependências necessárias para executar o programa principal:
-# youtube_downloader.py
-# ============================================================
+# 🎬 JYouTubeDownloader v2.0  
+🎨 **Tema Escuro Neon | Interface Gráfica com Tkinter + yt-dlp + FFmpeg**
 
-# Biblioteca principal para baixar vídeos e áudios do YouTube
-yt-dlp>=2025.1.1
+![Interface Preview](interface.png)
 
-# Biblioteca para lidar com requisições HTTP (instalada junto com yt-dlp)
-requests>=2.31.0
+---
 
-# Biblioteca padrão para manipulação de caminhos e diretórios
-pathlib>=1.0.1
+## 🧠 Sobre o Projeto
 
-# Opcional (deixa o terminal colorido e mais profissional)
-colorama>=0.4.6
+O **JYouTubeDownloader** é uma aplicação gráfica desenvolvida em **Python** que permite baixar vídeos e áudios do YouTube com apenas alguns cliques.  
+Possui uma **interface moderna**, **tema escuro**, **campo de nome personalizado**, **botão fixo de abrir pasta**, e **detecção automática do FFmpeg**.
 
-# ============================================================
-# 💡 Instalação automática via pip:
-# ------------------------------------------------------------
-# Execute este comando no terminal (PowerShell / CMD / Linux / Mac):
-#
-#     pip install -r requirements.txt
-#
-# Ou, se quiser instalar apenas o principal:
-#
-#     pip install yt-dlp
-#
-# ============================================================
-# ⚙️  Dependência externa necessária:
-# ------------------------------------------------------------
-# FFmpeg — usado para corrigir vídeos e converter para MP3
-#
-# Windows (PowerShell como administrador):
-#     choco install ffmpeg-full -y
-#
-# Linux (Debian/Ubuntu):
-#     sudo apt install ffmpeg -y
-#
-# macOS (Homebrew):
-#     brew install ffmpeg
-#
-# ============================================================
-# ✅ Requisitos mínimos:
-# - Python 3.8 ou superior
-# - Conexão com a internet
-# - Permissão de gravação na pasta "downloads"
-# ============================================================
+> 💡 Desenvolvido por **Jean Ivelsonne Dorvilma**  
+> Universidade Federal da Fronteira Sul – UFFS  
+
+---
+
+## 🚀 Funcionalidades
+
+✅ Interface gráfica moderna (Tkinter + ttk)  
+✅ Tema escuro com verde neon (`#00ff99`)  
+✅ Campo para nome personalizado do arquivo  
+✅ Botão fixo **📂 Abrir Pasta**  
+✅ Histórico automático de downloads (`logs/historico.txt`)  
+✅ Alternância de tema (escuro ↔ claro 🌗)  
+✅ Suporte a **MP4 (vídeo)** e **MP3 (áudio)**  
+✅ Detecção automática do **FFmpeg**  
+✅ Estrutura automática de pastas em `C:\Users\<usuário>\Videos\JYouTubeDownloader`  
+
+---
+
+## 🧱 Estrutura do Projeto
+

@@ -1,190 +1,211 @@
 #!/usr/bin/env python3
-"""
-YouTube Downloader (yt-dlp + FFmpeg AutoFix)
----------------------------------------------
-Ferramenta profissional para download de vídeos e áudios do YouTube.
-
-📦 Recursos:
-- Baixar vídeo (melhor qualidade)
-- Baixar áudio em MP3
-- Escolher pasta de saída personalizada
-- Detecção automática do FFmpeg
-- Atualização automática do yt-dlp
-- Correção automática de containers com FFmpeg
-- Tratamento de erros e mensagens coloridas
-
-Autor: Jean Ivelsonne Dorvilma
-GitHub: https://github.com/<seu-usuario>
-Licença: MIT
-"""
+# =============================================================
+#  JYouTubeDownloader v2.0
+#  Desenvolvido por: Jean Ivelsonne Dorvilma
+#  Universidade Federal da Fronteira Sul – UFFS
+#  Tema: Escuro Neon (Tkinter + yt-dlp + FFmpeg)
+# =============================================================
 
 import os
-import sys
+import threading
 import shutil
-import subprocess
+from datetime import datetime
 from pathlib import Path
+from tkinter import *
+from tkinter import ttk, filedialog, messagebox
 from yt_dlp import YoutubeDL
+import webbrowser
 
-# ------------------------------------------------------------
-# Configurações iniciais
-# ------------------------------------------------------------
-BASE_DIR = Path(__file__).parent
-DOWNLOAD_DIR = BASE_DIR / "downloads"
-VIDEO_DIR = DOWNLOAD_DIR / "video"
-AUDIO_DIR = DOWNLOAD_DIR / "audio"
-for folder in [VIDEO_DIR, AUDIO_DIR]:
-    folder.mkdir(parents=True, exist_ok=True)
+# -------------------------------------------------------------
+# CONFIGURAÇÕES INICIAIS
+# -------------------------------------------------------------
+APP_NAME = "JYouTubeDownloader"
+COR_PRINCIPAL = "#00ff99"
+COR_FUNDO = "#1e1e1e"
+COR_TEXTO = "white"
 
+# Caminhos padrão
+PASTA_VIDEOS = Path.home() / "Videos" / APP_NAME / "video"
+PASTA_AUDIOS = Path.home() / "Videos" / APP_NAME / "audio"
+PASTA_LOGS = Path(__file__).parent / "logs"
+PASTA_LOGS.mkdir(parents=True, exist_ok=True)
 
-# ------------------------------------------------------------
-# Funções utilitárias
-# ------------------------------------------------------------
-def print_header():
-    """Exibe o cabeçalho principal do programa."""
-    print("=" * 65)
-    print("🎬  YouTube Downloader  (yt-dlp + FFmpeg AutoFix)")
-    print("=" * 65)
-
-
-def limpar_url(url: str) -> str:
-    """Remove espaços ou barras inválidas no início da URL."""
-    return url.strip().lstrip("/")
+# Cria pastas se não existirem
+for pasta in [PASTA_VIDEOS, PASTA_AUDIOS]:
+    pasta.mkdir(parents=True, exist_ok=True)
 
 
-def verificar_ffmpeg() -> bool:
-    """Verifica se o FFmpeg está instalado e acessível no PATH."""
-    ffmpeg_path = shutil.which("ffmpeg")
-    if ffmpeg_path:
-        print(f"✅ FFmpeg detectado: {ffmpeg_path}")
+# -------------------------------------------------------------
+# FUNÇÕES PRINCIPAIS
+# -------------------------------------------------------------
+def verificar_ffmpeg():
+    """Verifica se o FFmpeg está instalado"""
+    if shutil.which("ffmpeg"):
         return True
-    else:
-        print("⚠️ FFmpeg não encontrado. O programa ainda funciona, "
-              "mas pode gerar erros de reprodução ou falhar na conversão para MP3.")
-        print("➡️ Instale com:  choco install ffmpeg-full -y  (no Windows)")
-        return False
+    messagebox.showwarning(
+        "FFmpeg não encontrado",
+        "⚠️ FFmpeg não está instalado.\n\nBaixe em: https://www.gyan.dev/ffmpeg/builds/"
+    )
+    return False
 
 
-def atualizar_yt_dlp():
-    """Atualiza automaticamente o yt-dlp para a versão mais recente."""
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        print("🔄 yt-dlp atualizado com sucesso.")
-    except Exception:
-        print("⚠️ Falha ao atualizar yt-dlp (sem conexão ou permissão).")
+def salvar_historico(tipo, titulo, url):
+    """Registra no arquivo de histórico"""
+    historico = PASTA_LOGS / "historico.txt"
+    with open(historico, "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now():%Y-%m-%d %H:%M}] {tipo} - \"{titulo}\" - {url}\n")
 
 
-def corrigir_video(caminho_arquivo: Path):
-    """Corrige o container do vídeo usando FFmpeg (sem recodificar)."""
-    if not verificar_ffmpeg():
-        return
-    try:
-        novo_nome = caminho_arquivo.with_name(caminho_arquivo.stem + "_corrigido.mp4")
-        print(f"🔧 Corrigindo vídeo com FFmpeg...")
-        subprocess.run(
-            ["ffmpeg", "-i", str(caminho_arquivo), "-c", "copy", str(novo_nome), "-y"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        print(f"✅ Vídeo corrigido salvo em: {novo_nome.name}")
-    except Exception as e:
-        print(f"⚠️ Erro ao corrigir vídeo: {e}")
+def progresso_hook(d):
+    """Atualiza a barra de progresso"""
+    if d["status"] == "downloading":
+        porcentagem = d.get("_percent_str", "0%").replace("%", "")
+        progress_bar["value"] = float(porcentagem)
+        status_label.config(text=f"Baixando... {porcentagem}%")
+        root.update_idletasks()
+    elif d["status"] == "finished":
+        status_label.config(text="Processando com FFmpeg...")
 
 
-# ------------------------------------------------------------
-# Download de vídeo e áudio
-# ------------------------------------------------------------
-def progress_hook(d):
-    """Monitora o progresso do download."""
-    if d['status'] == 'downloading':
-        percent = d.get('_percent_str', '').strip()
-        speed = d.get('_speed_str', '').strip()
-        eta = d.get('_eta_str', '').strip()
-        print(f"\r📥 Baixando: {percent} | {speed} | ETA: {eta}", end='', flush=True)
-    elif d['status'] == 'finished':
-        print("\n✅ Download concluído!")
-
-
-def baixar_video(url: str, pasta_saida: Path):
-    """Baixa vídeo completo (melhor qualidade)."""
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': str(pasta_saida / '%(title)s - %(id)s.%(ext)s'),
-        'quiet': True,
-        'noplaylist': True,
-        'progress_hooks': [progress_hook],
-        'merge_output_format': 'mp4'
-    }
-    try:
-        print(f"\n🎥 Iniciando download do vídeo: {url}")
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            caminho = Path(ydl.prepare_filename(info))
-            corrigir_video(caminho)
-    except Exception as e:
-        print(f"\n❌ Erro ao baixar vídeo: {e}")
-
-
-def baixar_audio(url: str, pasta_saida: Path):
-    """Baixa apenas o áudio e converte para MP3."""
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': str(pasta_saida / '%(title)s - %(id)s.%(ext)s'),
-        'quiet': True,
-        'noplaylist': True,
-        'progress_hooks': [progress_hook],
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-    }
-    try:
-        print(f"\n🎧 Iniciando download do áudio (MP3): {url}")
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-    except Exception as e:
-        print(f"\n❌ Erro ao baixar áudio: {e}")
-
-
-# ------------------------------------------------------------
-# Interface de menu
-# ------------------------------------------------------------
-def main():
-    print_header()
-    atualizar_yt_dlp()
-    verificar_ffmpeg()
-
-    print("1️⃣  Baixar vídeo completo (melhor qualidade)")
-    print("2️⃣  Baixar apenas o áudio (MP3)")
-    print("3️⃣  Escolher pasta de saída personalizada")
-    print("=" * 65)
-
-    opcao = input("Escolha uma opção (1/2/3): ").strip()
-    url = limpar_url(input("\nCole o link do vídeo do YouTube: ").strip())
+def iniciar_download():
+    """Inicia o processo de download"""
+    url = entry_url.get().strip()
+    nome_personalizado = entry_nome.get().strip()
+    tipo = tipo_var.get()
 
     if not url.startswith("http"):
-        print("❌ URL inválida! Certifique-se de colar o link completo do YouTube.")
+        messagebox.showerror("Erro", "Insira um link válido do YouTube.")
         return
 
-    pasta_saida = VIDEO_DIR if opcao == "1" else AUDIO_DIR
-    if opcao == "3":
-        caminho = input("Digite o caminho da pasta de saída (ex: ./meus_videos): ").strip()
-        pasta_saida = Path(caminho) if caminho else DOWNLOAD_DIR
-        pasta_saida.mkdir(parents=True, exist_ok=True)
-        tipo = input("Deseja baixar vídeo ou áudio? (v/a): ").lower()
-        if tipo == "v":
-            baixar_video(url, pasta_saida)
+    pasta_saida = PASTA_VIDEOS if tipo == "video" else PASTA_AUDIOS
+
+    threading.Thread(target=lambda: baixar(url, nome_personalizado, tipo, pasta_saida)).start()
+
+
+def baixar(url, nome, tipo, pasta):
+    """Executa o download"""
+    try:
+        status_label.config(text="Iniciando download...")
+        progress_bar["value"] = 0
+
+        nome_arquivo = nome if nome else "%(title)s - %(id)s"
+        saida = os.path.join(pasta, f"{nome_arquivo}.%(ext)s")
+
+        opcoes = {
+            "outtmpl": saida,
+            "progress_hooks": [progresso_hook],
+            "quiet": True,
+            "noplaylist": True
+        }
+
+        if tipo == "video":
+            opcoes["format"] = "best"
+            opcoes["merge_output_format"] = "mp4"
         else:
-            baixar_audio(url, pasta_saida)
-    elif opcao == "1":
-        baixar_video(url, pasta_saida)
-    elif opcao == "2":
-        baixar_audio(url, pasta_saida)
+            opcoes["format"] = "bestaudio/best"
+            opcoes["postprocessors"] = [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192"
+            }]
+
+        with YoutubeDL(opcoes) as ydl:
+            info = ydl.extract_info(url, download=True)
+            titulo = info.get("title", "Desconhecido")
+            salvar_historico(tipo.capitalize(), titulo, url)
+
+        messagebox.showinfo("Sucesso", "✅ Download concluído com sucesso!")
+        status_label.config(text="✅ Download concluído!")
+
+    except Exception as e:
+        messagebox.showerror("Erro", f"❌ Erro ao baixar:\n{e}")
+        status_label.config(text="Erro no download.")
+
+
+def abrir_pasta():
+    """Abre a pasta de downloads"""
+    pasta = PASTA_VIDEOS if tipo_var.get() == "video" else PASTA_AUDIOS
+    os.startfile(pasta)
+
+
+def alternar_tema():
+    """Alterna entre tema claro e escuro"""
+    global modo_escuro
+    modo_escuro = not modo_escuro
+
+    if modo_escuro:
+        root.configure(bg=COR_FUNDO)
+        style.configure("TLabel", background=COR_FUNDO, foreground=COR_TEXTO)
+        style.configure("TButton", background=COR_PRINCIPAL)
+        tema_btn.config(text="🌞 Tema Claro")
     else:
-        print("❌ Opção inválida!")
+        root.configure(bg="white")
+        style.configure("TLabel", background="white", foreground="black")
+        style.configure("TButton", background="#0078D7")
+        tema_btn.config(text="🌙 Tema Escuro")
 
 
-if __name__ == "__main__":
-    main()
+def abrir_github():
+    """Abre o repositório do projeto"""
+    webbrowser.open("https://github.com/Jean2992-star/JYouTubeDownloader")
+
+
+# -------------------------------------------------------------
+# INTERFACE GRÁFICA (TKINTER)
+# -------------------------------------------------------------
+root = Tk()
+root.title(f"{APP_NAME} – Tema Escuro")
+root.geometry("640x460")
+root.configure(bg=COR_FUNDO)
+root.resizable(False, False)
+
+style = ttk.Style()
+style.theme_use("clam")
+
+# Cabeçalho
+Label(root, text="🎬 JYouTubeDownloader", font=("Segoe UI", 18, "bold"),
+      bg=COR_FUNDO, fg=COR_PRINCIPAL).pack(pady=10)
+
+# Campo de URL
+Label(root, text="Cole o link do vídeo:", bg=COR_FUNDO, fg=COR_TEXTO).pack(anchor="w", padx=30)
+entry_url = ttk.Entry(root, width=70)
+entry_url.pack(padx=30, pady=5)
+
+# Campo de nome
+Label(root, text="Nome do arquivo (opcional):", bg=COR_FUNDO, fg=COR_TEXTO).pack(anchor="w", padx=30)
+entry_nome = ttk.Entry(root, width=70)
+entry_nome.pack(padx=30, pady=5)
+
+# Tipo de download
+tipo_var = StringVar(value="video")
+frame_tipo = Frame(root, bg=COR_FUNDO)
+frame_tipo.pack(pady=5)
+Radiobutton(frame_tipo, text="🎥 Vídeo (MP4)", variable=tipo_var, value="video",
+            bg=COR_FUNDO, fg=COR_TEXTO, selectcolor="#333").grid(row=0, column=0, padx=10)
+Radiobutton(frame_tipo, text="🎧 Áudio (MP3)", variable=tipo_var, value="audio",
+            bg=COR_FUNDO, fg=COR_TEXTO, selectcolor="#333").grid(row=0, column=1, padx=10)
+
+# Botões
+frame_botoes = Frame(root, bg=COR_FUNDO)
+frame_botoes.pack(pady=15)
+ttk.Button(frame_botoes, text="⬇️ Baixar", command=iniciar_download).grid(row=0, column=0, padx=10)
+ttk.Button(frame_botoes, text="📂 Abrir Pasta", command=abrir_pasta).grid(row=0, column=1, padx=10)
+tema_btn = ttk.Button(frame_botoes, text="🌞 Tema Claro", command=alternar_tema)
+tema_btn.grid(row=0, column=2, padx=10)
+
+# Barra de progresso
+progress_bar = ttk.Progressbar(root, length=520, mode="determinate")
+progress_bar.pack(pady=10)
+
+# Status
+status_label = Label(root, text="Aguardando link...", bg=COR_FUNDO, fg=COR_TEXTO)
+status_label.pack(pady=10)
+
+# Rodapé
+ttk.Button(root, text="🌐 GitHub", command=abrir_github).pack(pady=5)
+
+# FFmpeg
+verificar_ffmpeg()
+
+modo_escuro = True
+root.mainloop()

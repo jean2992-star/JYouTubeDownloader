@@ -5,6 +5,14 @@
 # youtube_downloader.py
 # ============================================================
 
+
+#1️⃣ Instalar dependências:
+#pip install -r requirements.txt
+
+#pyinstaller --noconfirm --onefile --windowed --icon=icons/app.ico youtube_downloader_gui_v2.py
+
+
+
 # Biblioteca principal para baixar vídeos e áudios do YouTube
 yt-dlp>=2025.1.1
 
